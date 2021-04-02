@@ -5,11 +5,13 @@ from typing import List, Optional
 from classes.enumerations import *
 from classes.adclass import *
 
+conf = configparser.ConfigParser()
+conf.read('config/server.conf')
 
+myclient = pymongo.MongoClient(conf.get("database", "url"))
+mydb = myclient[conf.get("database", "db")]
+mycol = mydb[conf.get("database", "column")]
 
-myclient = pymongo.MongoClient("mongodb+srv://audiotap:s8D2VtLx7uBtP418@audiotap.ahrip.mongodb.net/myFirstDatabase?retryWrites=true&w=majority")
-mydb = myclient["audiotapdb"]
-mycol = mydb["audiodata"]
 
 class song():
     songname : str
