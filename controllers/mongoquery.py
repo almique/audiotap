@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import List, Optional
 from classes.enumerations import *
 from classes.adclass import *
+import configparser
 
 conf = configparser.ConfigParser()
 conf.read('config/server.conf')
