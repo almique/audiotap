@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "**************** Please note that these tests require the configured db to be empty ********************"
+    
+pytest --disable-pytest-warnings -vv

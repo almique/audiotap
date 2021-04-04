@@ -1,6 +1,6 @@
 from enum import Enum
 
-class audioFileType(str, Enum):
+class AudioFileType(str, Enum):
     Song = "Song"
     Podcast = "Podcast"
     Audiobook = "Audiobook"

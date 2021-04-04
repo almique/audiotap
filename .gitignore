@@ -21,6 +21,7 @@ docs.zip
 archive.zip
 .DS_Store
 server.conf
+nohup.out
 # vim temporary files
 *~
 .*.sw?

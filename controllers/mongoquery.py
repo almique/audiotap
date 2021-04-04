@@ -2,95 +2,110 @@ import pymongo
 import datetime
 from datetime import timedelta
 from typing import List, Optional
-from classes.enumerations import *
-from classes.adclass import *
+from model.enumerations import *
+from model.audioTypes import *
+from model.exceptions import *
 import configparser
 
 conf = configparser.ConfigParser()
-conf.read('config/server.conf')
+conf.read("config/server.conf")
 
-myclient = pymongo.MongoClient(conf.get("database", "url"))
-mydb = myclient[conf.get("database", "db")]
-mycol = mydb[conf.get("database", "column")]
+client = pymongo.MongoClient(conf.get("database", "url"))
+db = client[conf.get("database", "db")]
+collection = db[conf.get("database", "collection")]
 
 
-class song():
-    songname : str
-    audioid : str
-    uploadtime: datetime
-    duration: int
-class podcast():
-    audioid : str
-    uploadtime: datetime
-    duration: int
-    podcastname: str
-    host: List[str] = []
-    participants: List[str] = []
-    
-class audiobook():
-    audioid : str
-    uploadtime: datetime
-    duration: int
-    audiobookname: str
-    author: str
-    narrator: str
+def getAllAudioQuery(audioFileType):
+    """
+    Fetches all Audio from the database for a given file type 
 
-class audiotypemeta(song, podcast, audiobook):
-    FileType: audioFileType
+    Args:
+        audioFileType (AudioFileType): file type
+    Returns:
+        audioRecord(s)
+    """
+    try:
+        rawRecs = list(collection.find({"audioFileType": audioFileType.name}))
+        audioRecords = []
+        for audioRec in rawRecs:
+            audioRec.pop('_id', None)
+            audioRecords.append(audioRec)
+        return audioRecords if audioRecords else None
+    except Exception as e:
+        return None
 
-def createquery(FileType, audioFileMetadata) -> AudioTypeMeta:
-    x = audiotypemeta()
-    if FileType == audioFileType.Song:
-        x.FileType = FileType
-        x.audioid = audioFileMetadata.audioid
-        x.duration = audioFileMetadata.duration
-        x.uploadtime = audioFileMetadata.uploadtime
-        x.songname = audioFileMetadata.songname
-    elif FileType == audioFileType.Podcast:
-        x.FileType = FileType
-        x.audioid = audioFileMetadata.audioid
-        x.duration = audioFileMetadata.duration
-        x.uploadtime = audioFileMetadata.uploadtime
-        x.podcastname = audioFileMetadata.podcastname
-        x.host = audioFileMetadata.host
-        x.participants = audioFileMetadata.participants
-    elif FileType == audioFileType.Audiobook:
-        x.FileType = FileType
-        x.audioid = audioFileMetadata.audioid
-        x.duration = audioFileMetadata.duration
-        x.uploadtime = audioFileMetadata.uploadtime
-        x.audiobookname = audioFileMetadata.audiobookname
-        x.author = audioFileMetadata.author
-        x.narrator = audioFileMetadata.narrator
+def getAudioQuery(audioFileType, audioId):
+    """
+    Fetches an Audio from the database for a given file type and audioId
 
-    ob = mycol.insert_one(x.__dict__)
-    if ob:
-        return x
-    else:
-        return 0
+    Args:
+        audioFileType (AudioFileType): file type
+        audioId (int): audioId
 
-def mongodelete(FileType, audioid) -> bool:
-    myquery = {"FileType": FileType , "audioid": audioid }
-    if mycol.delete_one(myquery):
+    Returns:
+        audioRecord
+    """
+    try:
+        cursor = collection.find({"audioFileType": audioFileType.name, "audioId": audioId})
+        audioRecord = cursor.next()
+        audioRecord.pop('_id', None)
+        return audioRecord if audioRecord else None
+    except Exception as e:
+        return None
+
+
+def createAudioQuery(audioFileType, audioFileMetadata, audioId):
+    """
+    Creates an Audio in the database for a given file type and audioId. Audio Id is first checked for uniqueness.
+
+    Args:
+        audioFileType (AudioFileType): file type
+        audioFileMetadata (AudioFilemetadata): Audio Information
+        audioId (int): audioId
+
+    Returns:
+        audioRecord if successful else raises exception
+    """
+    if getAudioQuery(audioFileType, audioId) is None:
+        audioObj = audioFileMetadata.__dict__
+        audioObj["audioFileType"] = audioFileType
+        audioObj["audioId"] = audioId
+        collection.insert_one(audioObj)
+        return audioObj
+    raise AudioTapNotFound(audioId)
+
+
+def deleteAudioQuery(audioFileType, audioId):
+    """
+    Deletes an Audio in the database for a given file type and audioId. Audio Id is first checked for uniqueness.
+
+    Args:
+        audioFileType (AudioFileType): file type
+        audioId (int): audioId
+
+    Returns:
+        Boolean True if successful else raises exception
+    """
+    if getAudioQuery(audioFileType, audioId) is not None:
+        collection.delete_one({"audioFileType": audioFileType, "audioId": audioId})
         return True
-    else:
-        return False
-
-def updatequery(FileType, audioid, audioFileMetadata) -> Dict:
-    myquery = {"FileType": FileType , "audioid": audioid }
-    newvalues = { "$set": { "uploadtime": audioFileMetadata.uploadtime, "duration": audioFileMetadata.duration,
-    "host": audioFileMetadata.host, "podcastname": audioFileMetadata.podcastname,
-    "songname": audioFileMetadata.songname, "audiobookname": audioFileMetadata.audiobookname,
-    "author": audioFileMetadata.author, "narrator": audioFileMetadata.narrator} }
-
-    if mycol.update_one(myquery, newvalues):
-        return newvalues
-    else:
-        return 0
+    raise AudioTapNotFound(audioId)
 
 
-def getquery(FileType, audioid) -> AudioTypeMeta:
-    myquery = {"FileType": FileType , "audioid": audioid }
-    ob = mycol.find(myquery)
-    for x in ob:
-        return x
+def updateAudioQuery(audioFileType, audioId, audioFileMetadata):
+    """
+    Updates an Audio in the database with new audioFileMetadata for a given file type and audioId. Audio Id is first checked for uniqueness.
+
+    Args:
+        audioFileType (AudioFileType): file type
+        audioId (int): audioId
+        audioFileMetadata (AudioFilemetadata): Audio Information
+
+    Returns:
+        audioRecord if successful else raises exception
+    """
+    if getAudioQuery(audioFileType, audioId) is not None:
+        if deleteAudioQuery(audioFileType, audioId):
+            audioQ = createAudioQuery(audioFileType, audioFileMetadata, audioId)
+            return audioQ
+    raise AudioTapNotFound(audioId)
